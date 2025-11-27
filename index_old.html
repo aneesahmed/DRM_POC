@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User-Activated DRM Test</title>
+
+    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .video-container {
+            max-width: 800px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: #000;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        #log-area {
+            margin-top: 20px;
+            font-family: monospace;
+            color: #ccc;
+            width: 90%;
+            max-width: 800px;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>User-Activated DASH Player</h1>
+
+    <div class="video-container">
+        <video id="videoPlayer" controls></video>
+    </div>
+
+    <div id="log-area">Player Initializing...</div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const MANIFEST_URL = "http://localhost:8000/stream/manifest.mpd";
+        const LICENSE_SERVER_URL = "http://localhost:8000/license-proxy";
+        const WIDEVINE_SYSTEM = "com.widevine.alpha";
+
+        const log = (message, isError = false) => {
+            const logElement = document.getElementById('log-area');
+            logElement.innerText = message;
+            // Use colors to indicate status
+            logElement.style.color = isError ? '#ff6b6b' : '#51cf66';
+            console.log(message);
+        };
+
+        function init() {
+            const video = document.querySelector("#videoPlayer");
+            const player = dashjs.MediaPlayer().create();
+
+            // 1. DEFINE PROTECTION DATA for Widevine
+            const protData = {
+                [WIDEVINE_SYSTEM]: {
+                    "serverURL": LICENSE_SERVER_URL,
+                    "httpRequestHeaders": {}
+                }
+            };
+
+            // 2. Pass the protection data to the player
+            player.setProtectionData(protData);
+
+            // 3. Reset the time (Prevents the video from starting at the end if the browser remembers the position)
+            video.currentTime = 0; 
+
+            // 4. Initialize the player. (The 'false' argument means no autoplay)
+            player.initialize(video, MANIFEST_URL, false);
+
+            // 5. Logging and Error Handling
+            player.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+                log(`Dash.js Error: ${e.error.message}`, true);
+                console.error("Dash.js Error Details:", e);
+            });
+            player.on(dashjs.MediaPlayer.events.PLAYBACK_STARTED, () => {
+                log("✅ Playback Started (with Audio)!");
+            });
+
+            log("Player ready. Click the Play button.");
+        }
+
+        document.addEventListener("DOMContentLoaded", init);
+    </script>
+
+</body>
+</html>

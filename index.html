@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Shaka Player Local DRM Test</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.compiled.js"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .video-container {
+            max-width: 800px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: #000;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        #log-area {
+            margin-top: 20px;
+            font-family: monospace;
+            color: #ccc;
+            width: 90%;
+            max-width: 800px;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Shaka Player (Local Stream Test)</h1>
+
+    <div class="video-container">
+        <video id="videoPlayer" controls></video>
+    </div>
+
+    <div id="log-area">Player Initializing...</div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // 🛑 LOCAL MANIFEST URL: Directly requests file from local FastAPI server mount.
+        const MANIFEST_URL = "https://d33lpnn61x8wuf.cloudfront.net/media/course/videos/the-fundamentals-laning-course/DRMTEST/dash.mpd";
+
+        const LICENSE_SERVER_URL = "http://localhost:8000/license-proxy";
+        const WIDEVINE_SYSTEM = "com.widevine.alpha";
+
+        const log = (message, isError = false) => {
+            const logElement = document.getElementById('log-area');
+            logElement.innerText = message;
+            logElement.style.color = isError ? '#ff6b6b' : '#51cf66';
+            console.log(message);
+        };
+
+        async function init() {
+            if (!shaka.Player.isBrowserSupported()) {
+                log("❌ Browser does not support EME/Shaka Player.", true);
+                return;
+            }
+
+            const video = document.querySelector("#videoPlayer");
+            const player = new shaka.Player(video);
+
+            player.addEventListener('error', onErrorEvent);
+
+            // --- DRM CONFIGURATION FIXES ---
+            player.configure({
+                drm: {
+                    servers: {
+                        [WIDEVINE_SYSTEM]: LICENSE_SERVER_URL
+                    },
+                    advanced: {
+                        [WIDEVINE_SYSTEM]: {
+                            'serverCertificate': undefined, 
+                            'distinctiveIdentifierRequired': false,
+                            'persistentStateRequired': false,
+                            'videoRobustness': 'SW_SECURE_CRYPTO',
+                            'audioRobustness': 'SW_SECURE_CRYPTO'
+                        }
+                    },
+                    retryParameters: { maxAttempts: 5 }
+                }
+            });
+
+            try {
+                log(`Loading manifest from: ${MANIFEST_URL}`);
+                await player.load(MANIFEST_URL);
+                log("✅ Manifest Loaded. Click the Play button.");
+            } catch (e) {
+                onError(e);
+            }
+        }
+        
+        function onErrorEvent(event) {
+            onError(event.detail);
+        }
+        
+        function onError(error) {
+            let errorMsg = `Shaka Error ${error.code}: ${error.message}`;
+            
+            if (error.code >= 6000 && error.code < 7000) {
+                 errorMsg += " (License/Key Issue. Check Key ID Match!)";
+            }
+            
+            log(errorMsg, true);
+            console.error("Shaka Error Details:", error);
+        }
+
+        document.addEventListener("DOMContentLoaded", init);
+    </script>
+
+</body>
+</html>
